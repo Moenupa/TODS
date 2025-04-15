@@ -4,78 +4,110 @@ import logging
 import os
 import random
 import sys
-import nltk
 
+from datasets import Dataset, load_metric
+import nltk
 import numpy as np
 import torch
 import transformers
-from transformers import (AutoConfig, AutoModel, BertTokenizer, BertForTokenClassification,
-                          DataCollatorForTokenClassification, HfArgumentParser, DataCollatorForSeq2Seq, Seq2SeqTrainer,
-                          Seq2SeqTrainingArguments, Trainer, TrainerCallback, AutoModelForSeq2SeqLM, BartTokenizer)
+from transformers import (
+    AutoConfig,
+    AutoModel,
+    AutoModelForSeq2SeqLM,
+    BartTokenizer,
+    BertForTokenClassification,
+    BertTokenizer,
+    DataCollatorForSeq2Seq,
+    DataCollatorForTokenClassification,
+    HfArgumentParser,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
+    Trainer,
+    TrainerCallback,
+)
 from transformers.trainer_utils import is_main_process
-from datasets import load_metric, Dataset
 from utils import DataTrainingArguments, ModelArguments, load_json
 
-import sys
-
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from modeling_cpt import CPTModel, CPTForConditionalGeneration
-from transformers import BertTokenizer, BartForConditionalGeneration, Text2TextGenerationPipeline
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from evaluate import get_rouge
+from modeling_cpt import CPTForConditionalGeneration, CPTModel
+from transformers import (
+    BartForConditionalGeneration,
+    BertTokenizer,
+    Text2TextGenerationPipeline,
+)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path", default='/path/to/model', type=str)
+parser.add_argument("--model_path", default="/path/to/model", type=str)
 parser.add_argument("--dataset", default="CSDS", type=str)
 parser.add_argument("--lr", default=2e-5, type=float)
-parser.add_argument("--batch_size", default='4', type=str)
-parser.add_argument("--epoch", default='10', type=str)
+parser.add_argument("--batch_size", default="4", type=str)
+parser.add_argument("--epoch", default="10", type=str)
 parser.add_argument("--data_dir", default="/path/to/dataset/", type=str)
 parser.add_argument("--gradient_accumulation_steps", default="2", type=str)
-parser.add_argument("--output_dir",default="CSDS",type=str)
-parser.add_argument("--sum_mode",default="final",type=str)
-parser.add_argument("--max_source_length",default="512",type=str)
+parser.add_argument("--output_dir", default="CSDS", type=str)
+parser.add_argument("--sum_mode", default="final", type=str)
+parser.add_argument("--max_source_length", default="512", type=str)
 args = parser.parse_args()
 arg_dict = args.__dict__
 print(args)
 
 logger = logging.getLogger(__name__)
 
-dataset_name = arg_dict['dataset']
-outdir_1 = 'output'
+dataset_name = arg_dict["dataset"]
+outdir_1 = "output"
 if not os.path.exists(outdir_1):
     os.mkdir(outdir_1)
 
-outdir = outdir_1 + '/' + args.output_dir
+outdir = outdir_1 + "/" + args.output_dir
 if not os.path.exists(outdir):
     os.mkdir(outdir)
 
 seed = 2021
 # outdir=outdir+'/'+str(seed)
-length_map={'CSDS':'200',
-            'DialogSum': '200'}
+length_map = {"CSDS": "200", "DialogSum": "200"}
 
 args = [
-    '--model_name_or_path', arg_dict['model_path'],
-    '--do_train', '--do_eval', '--do_predict',
-    '--train_file', os.path.join(arg_dict['data_dir'], 'train.json'),
-    '--validation_file', os.path.join(arg_dict['data_dir'], 'val.json'),
-    '--test_file', os.path.join(arg_dict['data_dir'], 'test.json'),
-    '--output_dir', outdir,
-    '--per_device_train_batch_size', arg_dict['batch_size'],
-    '--per_device_eval_batch_size', arg_dict['batch_size'],
-    '--overwrite_output_dir',
-    '--max_source_length', arg_dict['max_source_length'],
-    '--val_max_target_length=' + length_map[arg_dict['dataset']],
-    '--predict_with_generate=1',
-    '--seed', str(1000 * seed),
-    '--num_train_epochs', arg_dict['epoch'],
-    '--save_strategy', 'epoch',
-    '--evaluation_strategy', 'epoch',
-    '--learning_rate', str(arg_dict['lr']),
-    '--gradient_accumulation_steps', arg_dict['gradient_accumulation_steps'],
-    '--sum_mode', arg_dict['sum_mode']
+    "--model_name_or_path",
+    arg_dict["model_path"],
+    "--do_train",
+    "--do_eval",
+    "--do_predict",
+    "--train_file",
+    os.path.join(arg_dict["data_dir"], "train.json"),
+    "--validation_file",
+    os.path.join(arg_dict["data_dir"], "val.json"),
+    "--test_file",
+    os.path.join(arg_dict["data_dir"], "test.json"),
+    "--output_dir",
+    outdir,
+    "--per_device_train_batch_size",
+    arg_dict["batch_size"],
+    "--per_device_eval_batch_size",
+    arg_dict["batch_size"],
+    "--overwrite_output_dir",
+    "--max_source_length",
+    arg_dict["max_source_length"],
+    "--val_max_target_length=" + length_map[arg_dict["dataset"]],
+    "--predict_with_generate=1",
+    "--seed",
+    str(1000 * seed),
+    "--num_train_epochs",
+    arg_dict["epoch"],
+    "--save_strategy",
+    "epoch",
+    "--evaluation_strategy",
+    "epoch",
+    "--learning_rate",
+    str(arg_dict["lr"]),
+    "--gradient_accumulation_steps",
+    arg_dict["gradient_accumulation_steps"],
+    "--sum_mode",
+    arg_dict["sum_mode"],
 ]
-parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
+parser = HfArgumentParser(
+    (ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments)
+)
 model_args, data_args, training_args = parser.parse_args_into_dataclasses(args)
 
 
@@ -106,7 +138,9 @@ logging.basicConfig(
     datefmt="%m/%d/%Y %H:%M:%S",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger.setLevel(logging.INFO if is_main_process(training_args.local_rank) else logging.WARN)
+logger.setLevel(
+    logging.INFO if is_main_process(training_args.local_rank) else logging.WARN
+)
 
 # Log on each process the small summary:
 logger.warning(
@@ -118,16 +152,16 @@ if is_main_process(training_args.local_rank):
     transformers.utils.logging.set_verbosity_info()
 logger.info("Training/evaluation parameters %s", training_args)
 
-if arg_dict['dataset'] == 'CSDS':
-    tokenizer=BertTokenizer.from_pretrained(model_args.model_name_or_path)
+if arg_dict["dataset"] == "CSDS":
+    tokenizer = BertTokenizer.from_pretrained(model_args.model_name_or_path)
 else:
     tokenizer = BartTokenizer.from_pretrained(model_args.model_name_or_path)
-if 'bart' in model_args.model_name_or_path:
+if "bart" in model_args.model_name_or_path:
     model = BartForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
 else:
     model = CPTForConditionalGeneration.from_pretrained(model_args.model_name_or_path)
 model.config.max_length = data_args.val_max_target_length
-if arg_dict['dataset'] == 'CSDS':
+if arg_dict["dataset"] == "CSDS":
     model.config.no_repeat_ngram_size = -1
 else:
     model.config.no_repeat_ngram_size = 3
@@ -138,48 +172,58 @@ padding = False
 
 
 def preprocess_function(examples):
-    inputs = examples['dialogue']
-    topics = examples['topic']
-    targets = examples['sum']
-    model_inputs = {'input_ids': [], 'attention_mask': []}
+    inputs = examples["dialogue"]
+    topics = examples["topic"]
+    targets = examples["sum"]
+    model_inputs = {"input_ids": [], "attention_mask": []}
 
     inputs_tokenized = []
     for i in range(len(inputs)):
-        input_tmp = {'input_ids': [], 'attention_mask': []}
-        input_res = tokenizer(inputs[i], max_length=data_args.max_source_length, padding=padding, truncation=True)
-        if arg_dict['dataset'] == 'CSDS':
-            input_tmp['input_ids'].append(tokenizer._convert_token_to_id('[CLS]'))
-            input_tmp['attention_mask'].append(1)
-            for j in range(len(input_res['input_ids'])):
-                input_tmp['input_ids'] += input_res['input_ids'][j][1:]
-                input_tmp['attention_mask'] += input_res['attention_mask'][j][1:]
+        input_tmp = {"input_ids": [], "attention_mask": []}
+        input_res = tokenizer(
+            inputs[i],
+            max_length=data_args.max_source_length,
+            padding=padding,
+            truncation=True,
+        )
+        if arg_dict["dataset"] == "CSDS":
+            input_tmp["input_ids"].append(tokenizer._convert_token_to_id("[CLS]"))
+            input_tmp["attention_mask"].append(1)
+            for j in range(len(input_res["input_ids"])):
+                input_tmp["input_ids"] += input_res["input_ids"][j][1:]
+                input_tmp["attention_mask"] += input_res["attention_mask"][j][1:]
         else:
-            input_tmp['input_ids'].append(tokenizer._convert_token_to_id('<s>'))
-            input_tmp['attention_mask'].append(1)
-            for j in range(len(input_res['input_ids'])):
-                input_tmp['input_ids'] += input_res['input_ids'][j][1:-1]
-                input_tmp['attention_mask'] += input_res['attention_mask'][j][1:-1]
+            input_tmp["input_ids"].append(tokenizer._convert_token_to_id("<s>"))
+            input_tmp["attention_mask"].append(1)
+            for j in range(len(input_res["input_ids"])):
+                input_tmp["input_ids"] += input_res["input_ids"][j][1:-1]
+                input_tmp["attention_mask"] += input_res["attention_mask"][j][1:-1]
         inputs_tokenized.append(input_tmp)
 
-    topics = tokenizer(topics, max_length=max_target_length, padding=padding, truncation=True)
+    topics = tokenizer(
+        topics, max_length=max_target_length, padding=padding, truncation=True
+    )
 
     for i in range(len(inputs)):
-        if arg_dict['dataset'] == 'CSDS':
-            remain_length = data_args.max_source_length - len(topics['input_ids'][i])
-            input_ids = inputs_tokenized[i]['input_ids'][:remain_length]
-            input_ids[-1] = tokenizer._convert_token_to_id('[SEP]')
+        if arg_dict["dataset"] == "CSDS":
+            remain_length = data_args.max_source_length - len(topics["input_ids"][i])
+            input_ids = inputs_tokenized[i]["input_ids"][:remain_length]
+            input_ids[-1] = tokenizer._convert_token_to_id("[SEP]")
         else:
-            remain_length = data_args.max_source_length - len(topics['input_ids'][i]) - 1
-            input_ids = inputs_tokenized[i]['input_ids'][:remain_length]
-            input_ids.append(tokenizer._convert_token_to_id('Ġ|'))
+            remain_length = (
+                data_args.max_source_length - len(topics["input_ids"][i]) - 1
+            )
+            input_ids = inputs_tokenized[i]["input_ids"][:remain_length]
+            input_ids.append(tokenizer._convert_token_to_id("Ġ|"))
 
-        model_inputs['input_ids'].append(input_ids
-                                             + topics['input_ids'][i])
-        model_inputs['attention_mask'].append([1] * len(model_inputs['input_ids'][-1]))
+        model_inputs["input_ids"].append(input_ids + topics["input_ids"][i])
+        model_inputs["attention_mask"].append([1] * len(model_inputs["input_ids"][-1]))
 
     # Setup the tokenizer for targets
     with tokenizer.as_target_tokenizer():
-        labels = tokenizer(targets, max_length=max_target_length, padding=padding, truncation=True)
+        labels = tokenizer(
+            targets, max_length=max_target_length, padding=padding, truncation=True
+        )
 
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
@@ -235,7 +279,9 @@ if len(eval_dataset) > max_eval_num:
 print(len(eval_dataset))
 
 # Data collator
-label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
+label_pad_token_id = (
+    -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
+)
 data_collator = DataCollatorForSeq2Seq(
     tokenizer,
     model=model,
@@ -257,9 +303,9 @@ def postprocess_text(preds, labels):
     # preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
     # labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
-    while '' in preds:
-        idx = preds.index('')
-        preds[idx] = '。'
+    while "" in preds:
+        idx = preds.index("")
+        preds[idx] = "。"
 
     return preds, labels
 
@@ -278,11 +324,13 @@ def compute_metrics(eval_preds):
     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
     scores = rouge.get_scores(decoded_preds, decoded_labels, avg=True)
     for key in scores:
-        scores[key] = scores[key]['f'] * 100
+        scores[key] = scores[key]["f"] * 100
 
     result = scores
 
-    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+    prediction_lens = [
+        np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds
+    ]
     result["gen_len"] = np.mean(prediction_lens)
     result = {k: round(v, 4) for k, v in result.items()}
     return result
@@ -290,8 +338,10 @@ def compute_metrics(eval_preds):
 
 class TestCallback(TrainerCallback):
     def on_evaluate(self, args, state, control, **kwargs):
-        predictions, labels, metrics = trainer.predict(test_dataset, metric_key_prefix="predict")
-        metrics['epoch'] = state.epoch
+        predictions, labels, metrics = trainer.predict(
+            test_dataset, metric_key_prefix="predict"
+        )
+        metrics["epoch"] = state.epoch
         state.log_history.append(metrics)
 
 
@@ -308,32 +358,39 @@ trainer = Seq2SeqTrainer(
 )
 
 # Predicting
-predictions, labels, metrics = trainer.predict(test_dataset, metric_key_prefix="predict", max_length=200, num_beams=5)
+predictions, labels, metrics = trainer.predict(
+    test_dataset, metric_key_prefix="predict", max_length=200, num_beams=5
+)
 test_preds = tokenizer.batch_decode(
-    predictions, skip_special_tokens=True,
+    predictions,
+    skip_special_tokens=True,
 )
 test_preds = [pred.strip() for pred in test_preds]
 output_test_preds_file = os.path.join(training_args.output_dir, "test_generations.txt")
-with open(output_test_preds_file, "w", encoding='UTF-8') as writer:
+with open(output_test_preds_file, "w", encoding="UTF-8") as writer:
     writer.write("\n".join(test_preds))
 
+
 def get_ref_file(json_file, ref_file):
-    with open(json_file, 'r') as f:
+    with open(json_file, "r") as f:
         data = json.load(f)
     sums = []
     for sample in data:
-        sums.append(sample['QASumm'])
-    with open(ref_file, 'w') as f:
+        sums.append(sample["QASumm"])
+    with open(ref_file, "w") as f:
         for sum in sums:
-            f.write(sum+'\n')
+            f.write(sum + "\n")
 
-if arg_dict['dataset'] == 'CSDS':
-    ref_file = 'CSDS_data/' + data_args.sum_mode + '_aspect_refs_test.txt'
-#get_ref_file('CSDS_data/processed_aspect/test.json', ref_file)
+
+if arg_dict["dataset"] == "CSDS":
+    ref_file = "CSDS_data/" + data_args.sum_mode + "_aspect_refs_test.txt"
+    # get_ref_file('CSDS_data/processed_aspect/test.json', ref_file)
     get_rouge(output_test_preds_file, ref_file)
 
 else:
-    ref_file = 'DialogSum/test_refs.txt'
-    get_ref_file('DialogSum/test.json', ref_file)
-    os.system('files2rouge DialogSum/test_refs.txt %s -s rouge.txt -e .' % output_test_preds_file)
-
+    ref_file = "DialogSum/test_refs.txt"
+    get_ref_file("DialogSum/test.json", ref_file)
+    os.system(
+        "files2rouge DialogSum/test_refs.txt %s -s rouge.txt -e ."
+        % output_test_preds_file
+    )

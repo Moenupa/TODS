@@ -1,6 +1,6 @@
 from glob import iglob
-import os
 import json
+import os
 import re
 
 TEMPLATE = {
