@@ -1,12 +1,8 @@
 import json
 import os
-import pdb
 import random
 
 import jsonlines
-from nltk.tokenize import WordPunctTokenizer
-import numpy as np
-import torch
 from tqdm import tqdm
 
 random.seed(2021)

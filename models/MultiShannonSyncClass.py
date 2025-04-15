@@ -1,114 +1,45 @@
 import collections
 from dataclasses import dataclass
-import json
 import math
-import pdb
-import random
 import time
-from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from datasets import Dataset, load_metric
-import numpy as np
+from datasets import Dataset
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
-import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from torch.utils.data.sampler import RandomSampler, SequentialSampler
-import transformers
 from transformers import (
-    AutoConfig,
-    AutoModel,
-    AutoModelForSeq2SeqLM,
-    BartConfig,
-    BartForConditionalGeneration,
-    BertForTokenClassification,
-    BertTokenizer,
-    DataCollatorForSeq2Seq,
-    DataCollatorForTokenClassification,
-    HfArgumentParser,
     Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    Trainer,
-    TrainerCallback,
 )
 from transformers.file_utils import (
     WEIGHTS_NAME,
     PaddingStrategy,
-    is_apex_available,
-    is_datasets_available,
-    is_in_notebook,
-    is_sagemaker_distributed_available,
-    is_torch_tpu_available,
-    is_training_run_on_sagemaker,
 )
-from transformers.generation_beam_search import BeamScorer, BeamSearchScorer
-from transformers.generation_stopping_criteria import (
-    StoppingCriteriaList,
-    validate_stopping_criteria,
-)
-from transformers.generation_utils import (
+from fixer import is_torch_tpu_available
+from transformers.generation import (
     BeamSearchDecoderOnlyOutput,
     BeamSearchEncoderDecoderOutput,
-    LogitsProcessorList,
-    StoppingCriteriaList,
-)
-from transformers.modeling_outputs import (
-    BaseModelOutput,
-    BaseModelOutputWithPastAndCrossAttentions,
-    CausalLMOutputWithCrossAttentions,
-    Seq2SeqLMOutput,
-    Seq2SeqModelOutput,
-    Seq2SeqQuestionAnsweringModelOutput,
-    Seq2SeqSequenceClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.bart.modeling_bart import (
-    BartDecoder,
-    BartEncoder,
-    BartModel,
-    _expand_mask,
     shift_tokens_right,
 )
 from transformers.tokenization_utils_base import BatchEncoding, PreTrainedTokenizerBase
 from transformers.trainer_callback import (
-    CallbackHandler,
-    DefaultFlowCallback,
-    PrinterCallback,
-    ProgressCallback,
-    TrainerCallback,
-    TrainerControl,
     TrainerState,
 )
 from transformers.trainer_pt_utils import (
-    DistributedLengthGroupedSampler,
-    DistributedSamplerWithLoop,
     DistributedTensorGatherer,
-    LabelSmoother,
-    LengthGroupedSampler,
     SequentialDistributedSampler,
-    distributed_broadcast_scalars,
-    distributed_concat,
-    get_parameter_names,
     nested_concat,
     nested_detach,
-    nested_numpify,
-    nested_xla_mesh_reduce,
-    reissue_pt_warnings,
 )
 from transformers.trainer_utils import (
-    PREFIX_CHECKPOINT_DIR,
-    BestRun,
     EvalPrediction,
-    HPSearchBackend,
-    PredictionOutput,
     ShardedDDPOption,
-    TrainerMemoryTracker,
     TrainOutput,
-    default_compute_objective,
-    default_hp_space,
     denumpify_detensorize,
     get_last_checkpoint,
     set_seed,
@@ -256,11 +187,10 @@ class DataCollatorForMultiTaskSeq2Seq:
 class MultiTaskSeq2SeqTrainer(Seq2SeqTrainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         if self.label_smoother is not None and "labels_t2s" in inputs:
-            labels_t2s = inputs.pop("labels_t2s")
-            labels_s2t = inputs.pop("labels_s2t")
+            inputs.pop("labels_t2s")
+            inputs.pop("labels_s2t")
         else:
-            labels_t2s = None
-            labels_s2t = None
+            pass
         # print(inputs['input_ids_t2s'][0], inputs['input_ids_t2s'][1], inputs['input_ids_t2s'][2], inputs['input_ids_t2s'][3])
         # print(inputs['input_ids_t2s'].shape)
         # print(inputs['attention_mask_t2s'][0], inputs['attention_mask_t2s'][1], inputs['attention_mask_t2s'][2],
@@ -411,7 +341,6 @@ class MultiTaskSeq2SeqTrainer(Seq2SeqTrainer):
                     else:
                         logits_s2t = outputs_s2t[1:]
                 else:
-                    loss = None
                     if self.use_amp:
                         with autocast():
                             outputs = model(**inputs)

@@ -5,40 +5,29 @@ import os
 import random
 import sys
 
-from datasets import Dataset, load_metric
-import nltk
 import numpy as np
 import torch
 import transformers
 from transformers import (
-    AutoConfig,
-    AutoModel,
-    AutoModelForSeq2SeqLM,
     BartTokenizer,
-    BertForTokenClassification,
     BertTokenizer,
-    DataCollatorForSeq2Seq,
-    DataCollatorForTokenClassification,
     HfArgumentParser,
-    Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
-    Trainer,
     TrainerCallback,
 )
 from transformers.trainer_utils import is_main_process
 from utils_att import DataTrainingArguments, ModelArguments, load_json
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from MultiAttentionModClass import (
+from MultiAttentionClass import (
     DataCollatorForMultiTaskSeq2Seq,
     MultiTaskSeq2SeqTrainer,
 )
-from evaluate import get_rouge, get_topic_acc
+from evaluate import get_rouge
 from modeling_cpt import CPTForConditionalGeneration, CPTModel
 from transformers import (
     BartForConditionalGeneration,
     BertTokenizer,
-    Text2TextGenerationPipeline,
 )
 
 parser = argparse.ArgumentParser()

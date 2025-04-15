@@ -1,28 +1,16 @@
 import argparse
-import json
 import logging
 import os
 import random
 import sys
 
-import nltk
 import numpy as np
 import torch
 import transformers
 from transformers import (
-    AutoConfig,
-    AutoModel,
-    AutoModelForSeq2SeqLM,
     BartTokenizer,
-    BertForTokenClassification,
     BertTokenizer,
-    DataCollatorForSeq2Seq,
-    DataCollatorForTokenClassification,
     HfArgumentParser,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    Trainer,
-    TrainerCallback,
 )
 from transformers.trainer_utils import is_main_process
 from utils import (
@@ -38,7 +26,6 @@ from modeling_cpt import CPTForConditionalGeneration, CPTModel
 from transformers import (
     BartForConditionalGeneration,
     BertTokenizer,
-    Text2TextGenerationPipeline,
 )
 
 parser = argparse.ArgumentParser()
